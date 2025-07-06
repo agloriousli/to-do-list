@@ -10,8 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, Palette } from "lucide-react"
-import { ColorPicker } from "./color-picker"
+import { Plus, X } from "lucide-react"
 import { useTheme } from "../lib/theme-context"
 import { getRandomTaskColor } from "../types/theme-types"
 
@@ -20,7 +19,7 @@ interface CreateTaskFormProps {
   onCreateTask: (taskData: {
     name: string
     type: TaskType
-    category: string
+    category: string[]
     urgency: TaskUrgency[]
     notes: string
     dueDate: Date | null
@@ -35,7 +34,7 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
   const [formData, setFormData] = useState({
     name: "",
     type: TaskType.DO,
-    category: categories[0] || "Personal",
+    category: [categories[0] || "Personal"] as string[],
     urgency: [TaskUrgency.CASUAL] as TaskUrgency[],
     notes: "",
     dueDate: "",
@@ -47,7 +46,7 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
       text: colors.foreground,
     } as TaskColor,
   })
-  const [showColorPicker, setShowColorPicker] = useState(false)
+
 
   const handleUrgencyChange = (urgency: TaskUrgency, checked: boolean) => {
     if (checked) {
@@ -59,6 +58,20 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
       setFormData((prev) => ({
         ...prev,
         urgency: prev.urgency.filter((u) => u !== urgency),
+      }))
+    }
+  }
+
+  const handleCategoryChange = (category: string, checked: boolean) => {
+    if (checked) {
+      setFormData((prev) => ({
+        ...prev,
+        category: [...prev.category, category],
+      }))
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        category: prev.category.filter((c) => c !== category),
       }))
     }
   }
@@ -84,12 +97,7 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
     }))
   }
 
-  const handleColorChange = (color: TaskColor) => {
-    setFormData((prev) => ({
-      ...prev,
-      color,
-    }))
-  }
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,12 +116,11 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
   }
 
   const cardStyle = {
-    backgroundColor: formData.color.primary,
-    borderColor: formData.color.accent,
+    backgroundColor: colors.card,
+    borderColor: colors.accent,
     borderWidth: "2px",
     borderStyle: "solid",
-    background: `linear-gradient(135deg, ${formData.color.primary} 0%, ${formData.color.secondary} 100%)`,
-    boxShadow: `0 12px 40px -12px ${formData.color.accent}40, 0 8px 25px -8px ${formData.color.accent}30`,
+    boxShadow: `0 12px 40px -12px ${colors.accent}40, 0 8px 25px -8px ${colors.accent}30`,
   }
 
   return (
@@ -125,25 +132,18 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
               variant="ghost"
               size="sm"
               onClick={onCancel}
-              style={{ color: formData.color.text }}
+              style={{ color: colors.foreground }}
             >
               <X className="h-4 w-4" />
             </Button>
-            <CardTitle style={{ color: formData.color.text }}>Create New Task</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowColorPicker(!showColorPicker)}
-              style={{ color: formData.color.text }}
-            >
-              <Palette className="h-4 w-4" />
-            </Button>
+            <CardTitle style={{ color: colors.foreground }}>Create New Task</CardTitle>
+
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium" style={{ color: formData.color.text }}>
+              <label className="text-sm font-medium" style={{ color: colors.foreground }}>
                 Task Name *
               </label>
               <Input
@@ -152,16 +152,17 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                 placeholder="Enter task name..."
                 required
                 style={{
-                  backgroundColor: colors.card + "CC",
-                  borderColor: formData.color.accent,
-                  color: formData.color.text,
+                  backgroundColor: colors.background,
+                  borderColor: colors.accent,
+                  color: colors.foreground,
+                  borderWidth: "2px",
                 }}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium" style={{ color: formData.color.text }}>
+                <label className="text-sm font-medium" style={{ color: colors.foreground }}>
                   Type
                 </label>
                 <Select
@@ -170,14 +171,15 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                 >
                   <SelectTrigger
                     style={{
-                      backgroundColor: colors.card + "CC",
-                      borderColor: formData.color.accent,
-                      color: formData.color.text,
+                      backgroundColor: colors.background,
+                      borderColor: colors.accent,
+                      color: colors.foreground,
+                      borderWidth: "2px",
                     }}
                   >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent style={{ backgroundColor: colors.card, borderColor: colors.accent }}>
+                  <SelectContent style={{ backgroundColor: colors.background, borderColor: colors.accent, borderWidth: "2px" }}>
                     {Object.values(TaskType).map((type) => (
                       <SelectItem key={type} value={type} style={{ color: colors.foreground }}>
                         {type}
@@ -188,35 +190,32 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
               </div>
 
               <div>
-                <label className="text-sm font-medium" style={{ color: formData.color.text }}>
-                  Category
+                <label className="text-sm font-medium" style={{ color: colors.foreground }}>
+                  Categories
                 </label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger
-                    style={{
-                      backgroundColor: colors.card + "CC",
-                      borderColor: formData.color.accent,
-                      color: formData.color.text,
-                    }}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent style={{ backgroundColor: colors.card, borderColor: colors.accent }}>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category} style={{ color: colors.foreground }}>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {categories.map((category) => (
+                    <div key={category} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={formData.category.includes(category)}
+                        onCheckedChange={(checked) => handleCategoryChange(category, checked as boolean)}
+                        style={{ 
+                          borderColor: colors.accent,
+                          borderWidth: "2px",
+                          backgroundColor: colors.background
+                        }}
+                      />
+                      <span className="text-sm" style={{ color: colors.foreground }}>
                         {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium" style={{ color: formData.color.text }}>
+              <label className="text-sm font-medium" style={{ color: colors.foreground }}>
                 Urgency
               </label>
               <div className="flex space-x-4 mt-2">
@@ -225,9 +224,13 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                     <Checkbox
                       checked={formData.urgency.includes(urgency)}
                       onCheckedChange={(checked) => handleUrgencyChange(urgency, checked as boolean)}
-                      style={{ borderColor: formData.color.accent }}
+                      style={{ 
+                        borderColor: colors.accent,
+                        borderWidth: "2px",
+                        backgroundColor: colors.background
+                      }}
                     />
-                    <span className="text-sm" style={{ color: formData.color.text }}>
+                    <span className="text-sm" style={{ color: colors.foreground }}>
                       {urgency}
                     </span>
                   </div>
@@ -236,7 +239,7 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
             </div>
 
             <div>
-              <label className="text-sm font-medium" style={{ color: formData.color.text }}>
+              <label className="text-sm font-medium" style={{ color: colors.foreground }}>
                 Due Date (Optional)
               </label>
               <Input
@@ -244,15 +247,16 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                 value={formData.dueDate}
                 onChange={(e) => setFormData((prev) => ({ ...prev, dueDate: e.target.value }))}
                 style={{
-                  backgroundColor: colors.card + "CC",
-                  borderColor: formData.color.accent,
-                  color: formData.color.text,
+                  backgroundColor: colors.background,
+                  borderColor: colors.accent,
+                  color: colors.foreground,
+                  borderWidth: "2px",
                 }}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium" style={{ color: formData.color.text }}>
+              <label className="text-sm font-medium" style={{ color: colors.foreground }}>
                 Notes
               </label>
               <Textarea
@@ -261,49 +265,51 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                 placeholder="Add any additional notes..."
                 rows={3}
                 style={{
-                  backgroundColor: colors.card + "CC",
-                  borderColor: formData.color.accent,
-                  color: formData.color.text,
+                  backgroundColor: colors.background,
+                  borderColor: colors.accent,
+                  color: colors.foreground,
+                  borderWidth: "2px",
                 }}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium" style={{ color: formData.color.text }}>
-                Links
-              </label>
+                <label className="text-sm font-medium" style={{ color: colors.foreground }}>
+                  Links
+                </label>
               <div className="space-y-2">
-                {formData.links.map((link, index) => (
+              {formData.links.map((link, index) => (
                   <div key={index} className="flex space-x-2">
-                    <Input
-                      value={link}
-                      onChange={(e) => handleLinkChange(index, e.target.value)}
+                  <Input
+                    value={link}
+                    onChange={(e) => handleLinkChange(index, e.target.value)}
                       placeholder="Enter URL..."
-                      style={{
-                        backgroundColor: colors.card + "CC",
-                        borderColor: formData.color.accent,
-                        color: formData.color.text,
-                      }}
-                    />
-                    {formData.links.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveLink(index)}
-                        style={{ color: formData.color.text }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                    style={{
+                        backgroundColor: colors.background,
+                      borderColor: colors.accent,
+                      color: colors.foreground,
+                      borderWidth: "2px",
+                    }}
+                  />
+                  {formData.links.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveLink(index)}
+                      style={{ color: colors.foreground }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={handleAddLink}
                   className="w-full"
-                  style={{ color: formData.color.text }}
+                  style={{ color: colors.foreground }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Link
@@ -316,9 +322,9 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
                 type="submit"
                 className="flex-1 transition-all duration-300 hover:scale-105"
                 style={{
-                  background: `linear-gradient(135deg, ${formData.color.accent} 0%, ${formData.color.accent}80 100%)`,
+                  background: `linear-gradient(135deg, ${colors.accent} 0%, ${colors.accent}80 100%)`,
                   color: colors.card,
-                  boxShadow: `0 6px 20px -4px ${formData.color.accent}50, 0 4px 12px -2px ${formData.color.accent}40`,
+                  boxShadow: `0 6px 20px -4px ${colors.accent}50, 0 4px 12px -2px ${colors.accent}40`,
                 }}
               >
                 Create Task
@@ -328,15 +334,7 @@ export function CreateTaskForm({ categories, onCreateTask, onCancel }: CreateTas
         </CardContent>
       </Card>
 
-      {showColorPicker && (
-        <div className="absolute top-0 right-0 z-10">
-          <ColorPicker
-            currentColor={formData.color}
-            onColorChange={handleColorChange}
-            onClose={() => setShowColorPicker(false)}
-          />
-        </div>
-      )}
+
     </div>
   )
 }

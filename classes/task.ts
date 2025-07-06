@@ -21,7 +21,7 @@ export class Task {
   public id: string
   public name: string
   public type: TaskType
-  public category: string
+  public category: string[]
   public urgency: TaskUrgency[]
   public notes: string
   public dueDate: Date | null
@@ -38,7 +38,7 @@ export class Task {
   constructor(
     name: string,
     type: TaskType = TaskType.DO,
-    category = "Personal",
+    category: string | string[] = ["Personal"],
     urgency: TaskUrgency[] = [TaskUrgency.CASUAL],
     dueDate: Date | null = null,
     parentId: string | null = null,
@@ -47,7 +47,7 @@ export class Task {
     this.id = this.generateId()
     this.name = name
     this.type = type
-    this.category = category
+    this.category = Array.isArray(category) ? category : [category]
     this.urgency = urgency
     this.notes = ""
     this.dueDate = dueDate

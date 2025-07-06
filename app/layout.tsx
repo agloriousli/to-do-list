@@ -56,7 +56,7 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Colorful To-Do List",
+  title: "To-Do List",
   description: "A beautiful and organized task management app with customizable themes",
 };
 
@@ -71,7 +71,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${roboto.variable} ${openSans.variable} ${poppins.variable} ${montserrat.variable} ${nunito.variable} ${sourceSans3.variable} ${workSans.variable} antialiased`}
       >
         <ThemeProvider>
-          {children}
+        {children}
         </ThemeProvider>
       </body>
     </html>

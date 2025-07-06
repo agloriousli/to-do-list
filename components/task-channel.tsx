@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import type { Task } from "../classes/task"
 import type { MessageAttachment, MessageReaction } from "../types/task-types"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,7 @@ import { useTheme } from "../lib/theme-context"
 interface TaskChannelProps {
   task: Task
   onUpdate: (task: Task) => void
+  showHeader?: boolean
 }
 
 interface LassoSelection {
@@ -61,8 +62,18 @@ interface LassoSelection {
   isActive: boolean
 }
 
-export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
+export function TaskChannel({ task, onUpdate, showHeader = true }: TaskChannelProps) {
   const { colors } = useTheme()
+  
+  // Generate color variations for messages
+  const messageColors = {
+    primary: colors.card + "E6", // Slightly transparent card color
+    secondary: colors.background + "CC", // Slightly transparent background
+    accent: colors.accent + "60", // Muted accent
+    text: colors.foreground + "CC", // Slightly muted text
+    border: colors.accent + "30", // Subtle border
+  }
+  
   const [newMessage, setNewMessage] = useState("")
   const [attachments, setAttachments] = useState<File[]>([])
   const [dragOver, setDragOver] = useState(false)
@@ -74,7 +85,7 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [isMessagesExpanded, setIsMessagesExpanded] = useState(false)
+  const [isMessagesExpanded, setIsMessagesExpanded] = useState(showHeader ? false : true)
   const [lassoSelection, setLassoSelection] = useState<LassoSelection>({
     startX: 0,
     startY: 0,
@@ -142,14 +153,17 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
       const height = Math.abs(lassoSelection.endY - lassoSelection.startY)
 
       // Draw semi-transparent fill with more visible color
-      ctx.fillStyle = "rgba(59, 130, 246, 0.2)"
+      ctx.fillStyle = "rgba(59, 130, 246, 0.3)"
       ctx.fillRect(left, top, width, height)
 
       // Draw border with more visible color
       ctx.strokeStyle = "rgba(59, 130, 246, 1)"
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
+      ctx.lineWidth = 3
+      ctx.setLineDash([8, 4])
       ctx.strokeRect(left, top, width, height)
+      
+      // Reset line dash
+      ctx.setLineDash([])
     }
   }, [lassoSelection.isActive, lassoSelection.startX, lassoSelection.startY, lassoSelection.endX, lassoSelection.endY])
 
@@ -256,12 +270,12 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
   }
 
   // Multi-select functionality
-  const enterMultiSelectMode = (messageId?: string) => {
+  const enterMultiSelectMode = useCallback((messageId?: string) => {
     setIsMultiSelectMode(true)
     if (messageId) {
       setSelectedMessages(new Set([messageId]))
     }
-  }
+  }, [])
 
   const exitMultiSelectMode = () => {
     setIsMultiSelectMode(false)
@@ -329,10 +343,9 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
 
     // Check if we're clicking on a message or interactive element
     const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('input') || target.closest('textarea')) {
+    if (target.closest('button') || target.closest('input') || target.closest('textarea') || target.closest('canvas')) {
       return
     }
-
 
     e.preventDefault()
     e.stopPropagation()
@@ -344,9 +357,18 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
 
     setDragStart({ x, y })
     setIsDragging(false)
+    
+    // Reset lasso selection
+    setLassoSelection({
+      startX: 0,
+      startY: 0,
+      endX: 0,
+      endY: 0,
+      isActive: false,
+    })
   }
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragStart || !containerRef.current) return
 
     const container = containerRef.current
@@ -379,17 +401,23 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
     if (isDragging) {
       e.preventDefault()
       e.stopPropagation()
+      
+      // Update lasso selection with current mouse position
       setLassoSelection(prev => ({
         ...prev,
         endX: x,
         endY: y,
       }))
     }
-  }
+  }, [dragStart, isDragging, isMultiSelectMode, enterMultiSelectMode])
 
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isDragging) {
-      // Stop lasso selection and finalize selection
+      // Finalize the selection before stopping lasso selection
+      const selectedIds = getMessagesInLassoSelection()
+      setSelectedMessages(new Set(selectedIds))
+      
+      // Stop lasso selection
       setLassoSelection(prev => ({ ...prev, isActive: false }))
       setIsDragging(false)
       setDragStart(null)
@@ -571,11 +599,16 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
         <Card
           key={message.id}
           data-message-id={message.id}
-          className={`group relative cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
+          className={`group relative cursor-pointer transition-all duration-200 ${
             message.type === "system" ? "bg-blue-50" : message.isPinned ? "bg-yellow-50 border-yellow-200" : ""
           } ${selectedMessages.has(message.id) ? "ring-2 ring-blue-500 bg-blue-50" : ""} ${
             isMultiSelectMode ? "hover:bg-blue-25" : ""
           }`}
+          style={{
+            backgroundColor: messageColors.primary,
+            borderColor: messageColors.border,
+            color: messageColors.text,
+          }}
           onClick={(e) => handleMessageClick(message.id, e)}
           onMouseDown={(e) => handleLongPressStart(message.id, e)}
           onMouseUp={handleLongPressEnd}
@@ -585,21 +618,24 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
         >
           <CardContent className="px-4 py-1">
             {message.isPinned && (
-              <div className="flex items-center space-x-1 mb-2 text-yellow-600">
+              <div className="flex items-center space-x-1 mb-2" style={{ color: messageColors.accent }}>
                 <Pin className="h-3 w-3" />
                 <span className="text-xs font-medium">Pinned Message</span>
               </div>
             )}
 
             {message.replyToId && (
-              <div className="mb-2 p-2 bg-gray-100 rounded border-l-4 border-gray-300">
+              <div className="mb-2 p-2 rounded border-l-4" style={{ 
+                backgroundColor: messageColors.secondary,
+                borderColor: messageColors.border 
+              }}>
                 <div className="flex items-center space-x-1 mb-1">
-                  <Reply className="h-3 w-3 text-gray-500" />
-                  <span className="text-xs text-gray-500">
+                  <Reply className="h-3 w-3" style={{ color: messageColors.text }} />
+                  <span className="text-xs" style={{ color: messageColors.text }}>
                     Replying to {getReplyMessage(message.replyToId)?.author}
                   </span>
                 </div>
-                <p className="text-xs text-gray-600 truncate">{getReplyMessage(message.replyToId)?.content}</p>
+                <p className="text-xs truncate" style={{ color: messageColors.text }}>{getReplyMessage(message.replyToId)?.content}</p>
               </div>
             )}
 
@@ -608,14 +644,15 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-1">
                   <span
-                    className={`text-sm font-medium ${message.type === "system" ? "text-blue-600" : "text-gray-900"}`}
+                    className="text-sm font-medium"
+                    style={{ color: messageColors.text }}
                   >
                     {message.author}
                   </span>
-                  <span className="text-xs text-gray-500">{format(message.timestamp, "MMM d, h:mm a")}</span>
+                  <span className="text-xs" style={{ color: messageColors.text + "80" }}>{format(message.timestamp, "MMM d, h:mm a")}</span>
                   {message.isStarred && <Star className="h-3 w-3 text-yellow-500 fill-current" />}
                 </div>
-                {message.content && <p className="text-sm text-gray-700 whitespace-pre-wrap">{message.content}</p>}
+                {message.content && <p className="text-sm whitespace-pre-wrap" style={{ color: messageColors.text }}>{message.content}</p>}
                 {message.attachments.map((attachment: MessageAttachment) => (
                   <div key={attachment.id}>{renderAttachment(attachment)}</div>
                 ))}
@@ -631,6 +668,10 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                         className={`h-6 px-2 text-xs ${
                           reaction.users.includes("User") ? "bg-blue-100 text-blue-700" : ""
                         }`}
+                        style={{
+                          backgroundColor: messageColors.secondary,
+                          color: messageColors.text,
+                        }}
                         onClick={(e) => {
                           e.stopPropagation()
                           addReaction(message.id, reaction.emoji)
@@ -645,15 +686,7 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
 
               {/* Discord-style action buttons on the right */}
               <div className="flex items-center space-x-1 ml-2 shrink-0">
-                {/* Selection checkbox - visible in multi-select mode */}
-                {isMultiSelectMode && (
-                  <Checkbox
-                    checked={selectedMessages.has(message.id)}
-                    onCheckedChange={() => toggleMessageSelection(message.id)}
-                    className="bg-white border-2"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                )}
+
 
                 {/* Discord-style trash button - visible on hover */}
                 <Button
@@ -664,6 +697,7 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                     deleteMessage(message.id)
                   }}
                   className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                  style={{ color: messageColors.text }}
                   title="Delete message"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -676,6 +710,7 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                       variant="ghost"
                       size="sm"
                       className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
+                      style={{ color: messageColors.text }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <MoreHorizontal className="h-4 w-4" />
@@ -729,24 +764,26 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
   }
 
   return (
-    <div className="border-t mt-4" style={{ borderColor: colors.accent + "40" }}>
-      <div className="p-4" style={{ borderColor: colors.accent + "20" }}>
-        <div className="flex items-center">
-          <MessageSquare className="h-4 w-4 mr-2" style={{ color: colors.foreground }} />
-          <span style={{ color: colors.foreground }}>Messages for {task.name}</span>
-          <Badge variant="secondary" className="ml-auto mr-2" style={{ backgroundColor: colors.accent + "20", color: colors.foreground }}>
-            {task.messages.length}
-          </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMessagesExpanded(!isMessagesExpanded)}
-            style={{ color: colors.foreground }}
-          >
-            {isMessagesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
+    <div className={showHeader ? "border-t mt-4" : ""} style={{ borderColor: showHeader ? colors.accent + "40" : "transparent" }}>
+      {showHeader && (
+        <div className="p-4" style={{ borderColor: colors.accent + "20" }}>
+          <div className="flex items-center">
+            <MessageSquare className="h-4 w-4 mr-2" style={{ color: colors.foreground }} />
+            <span style={{ color: colors.foreground }}>Messages for {task.name}</span>
+            <Badge variant="secondary" className="ml-auto mr-2" style={{ backgroundColor: colors.accent + "20", color: colors.foreground }}>
+              {task.messages.length}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMessagesExpanded(!isMessagesExpanded)}
+              style={{ color: colors.foreground }}
+            >
+              {isMessagesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {isMessagesExpanded && (
 
@@ -806,8 +843,8 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
               style={{ cursor: isDragging ? 'crosshair' : 'default' }}
             >
               {task.messages.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <div className="text-center py-8" style={{ color: messageColors.text + "80" }}>
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" style={{ color: messageColors.text }} />
                   <p>No messages yet. Start the conversation!</p>
                 </div>
               ) : (
@@ -826,32 +863,45 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                 left: 0,
                 width: '100%',
                 height: '100%',
+                pointerEvents: 'none',
               }}
             />
           </div>
 
           {/* Reply Preview */}
           {replyingToMessage && (
-            <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+            <div className="px-4 py-2 border-t" style={{ 
+              backgroundColor: messageColors.secondary,
+              borderColor: messageColors.border 
+            }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Reply className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">
+                  <Reply className="h-4 w-4" style={{ color: messageColors.text }} />
+                  <span className="text-sm" style={{ color: messageColors.text }}>
                     Replying to <span className="font-medium">{replyingToMessage.author}</span>
                   </span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setReplyingTo(null)}>
+                <Button variant="ghost" size="sm" onClick={() => setReplyingTo(null)} style={{ color: messageColors.text }}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-sm text-gray-500 mt-1 truncate">{replyingToMessage.content}</p>
+              <p className="text-sm mt-1 truncate" style={{ color: messageColors.text + "80" }}>{replyingToMessage.content}</p>
             </div>
           )}
 
           {/* Message Input */}
           <div
             className={`p-4 border-t ${dragOver ? "bg-blue-50 border-blue-200" : ""}`}
-            style={{ borderColor: colors.accent + "50" }}
+            style={{ 
+              borderColor: messageColors.border,
+              backgroundColor: messageColors.primary,
+              margin: "-12px -12px -12px -12px",
+              padding: "16px",
+              borderTopLeftRadius: "0",
+              borderTopRightRadius: "0",
+              borderBottomLeftRadius: "8px",
+              borderBottomRightRadius: "8px",
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -860,15 +910,15 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
             {attachments.length > 0 && (
               <div className="mb-3 space-y-2">
                 {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div key={index} className="flex items-center justify-between p-2 rounded-lg" style={{ backgroundColor: messageColors.secondary }}>
                     <div className="flex items-center space-x-2">
                       {getFileIcon(getFileType(file.type))}
                       <div>
-                        <p className="text-sm font-medium">{file.name}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        <p className="text-sm font-medium" style={{ color: messageColors.text }}>{file.name}</p>
+                        <p className="text-xs" style={{ color: messageColors.text + "80" }}>{formatFileSize(file.size)}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => removeAttachment(index)}>
+                    <Button variant="ghost" size="sm" onClick={() => removeAttachment(index)} style={{ color: messageColors.text }}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -890,6 +940,10 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                   rows={2}
                   className="resize-none"
                   disabled={isMultiSelectMode}
+                  style={{
+                    backgroundColor: messageColors.secondary,
+                    color: messageColors.text,
+                  }}
                 />
               </div>
               <div className="flex flex-col space-y-2">
@@ -898,6 +952,7 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isMultiSelectMode}
+                  style={{ color: messageColors.text }}
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
@@ -905,6 +960,11 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
                   onClick={handleSendMessage}
                   disabled={(!newMessage.trim() && attachments.length === 0) || isMultiSelectMode}
                   size="sm"
+                  style={{
+                    backgroundColor: colors.accent,
+                    color: "white",
+                    border: `1px solid ${colors.accent}`,
+                  }}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -921,10 +981,10 @@ export function TaskChannel({ task, onUpdate }: TaskChannelProps) {
             />
 
             {dragOver && (
-              <div className="absolute inset-0 bg-blue-100 bg-opacity-75 flex items-center justify-center rounded-lg">
+              <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{ backgroundColor: messageColors.accent + "20" }}>
                 <div className="text-center">
-                  <Paperclip className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                  <p className="text-blue-600 font-medium">Drop files here to attach</p>
+                  <Paperclip className="h-8 w-8 mx-auto mb-2" style={{ color: messageColors.accent }} />
+                  <p className="font-medium" style={{ color: messageColors.accent }}>Drop files here to attach</p>
                 </div>
               </div>
             )}

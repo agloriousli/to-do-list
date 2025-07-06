@@ -32,7 +32,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (saved) {
         try {
           const parsedTheme = JSON.parse(saved)
-          setThemeState(parsedTheme)
+          // Ensure all required properties are present
+          setThemeState({
+            mode: parsedTheme.mode || "light",
+            theme: parsedTheme.theme || "black-white",
+            font: parsedTheme.font || "Inter"
+          })
         } catch {
           // fallback to default
         }
@@ -81,13 +86,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty("--task-subcolors", colors.taskSubcolors.join(","))
     
     // Set font family using CSS variable format
-    const fontVariable = `var(--font-${theme.font.toLowerCase().replace(/\s+/g, '-')})`
+    const fontName = theme.font || "Inter"
+    const fontVariable = `var(--font-${fontName.toLowerCase().replace(/\s+/g, '-')})`
     root.style.setProperty("--font-family", fontVariable)
     
     // Set data attributes for theme-aware styling
-    root.setAttribute("data-theme", theme.theme)
-    root.setAttribute("data-mode", theme.mode)
-    root.setAttribute("data-font", theme.font)
+    root.setAttribute("data-theme", theme.theme || "black-white")
+    root.setAttribute("data-mode", theme.mode || "light")
+    root.setAttribute("data-font", theme.font || "Inter")
   }, [theme, colors, isHydrated])
 
   return (

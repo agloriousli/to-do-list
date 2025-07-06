@@ -7,6 +7,7 @@ import { type TaskType, TaskUrgency, type TaskColor } from "../types/task-types"
 import { TaskCard } from "../components/task-card"
 import { TaskSidebar } from "../components/task-sidebar"
 import { CreateTaskForm } from "../components/create-task-form"
+import { TaskEditMenu } from "../components/task-edit-menu"
 
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -24,16 +25,18 @@ export default function TodoApp() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "complete">("all")
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [showEditMenu, setShowEditMenu] = useState(false)
 
   useEffect(() => {
     if (isHydrated) {
-      refreshTasks()
+    refreshTasks()
     }
   }, [isHydrated])
 
   useEffect(() => {
     if (isHydrated) {
-      filterTasks()
+    filterTasks()
     }
   }, [tasks, selectedCategory, searchQuery, taskFilter, isHydrated])
 
@@ -46,7 +49,7 @@ export default function TodoApp() {
     let filtered = [...tasks]
 
     if (selectedCategory) {
-      filtered = filtered.filter((task) => task.category === selectedCategory)
+      filtered = filtered.filter((task) => task.category.includes(selectedCategory))
     }
 
     if (searchQuery) {
@@ -61,7 +64,7 @@ export default function TodoApp() {
       } else {
         filtered = taskManager.searchTasks(query)
         if (selectedCategory) {
-          filtered = filtered.filter((task) => task.category === selectedCategory)
+          filtered = filtered.filter((task) => task.category.includes(selectedCategory))
         }
       }
     }
@@ -86,7 +89,7 @@ export default function TodoApp() {
   const handleCreateTask = (taskData: {
     name: string
     type: TaskType
-    category: string
+    category: string[]
     urgency: TaskUrgency[]
     notes: string
     dueDate: Date | null
@@ -132,7 +135,7 @@ export default function TodoApp() {
   const handleAddSubtask = (parentId: string, taskData: {
     name: string
     type: TaskType
-    category: string
+    category: string[]
     urgency: TaskUrgency[]
     notes: string
     dueDate: Date | null
@@ -175,14 +178,24 @@ export default function TodoApp() {
   const getTaskCounts = () => {
     const counts: { [key: string]: number } = {}
     if (taskManager) {
-      taskManager.getCategories().forEach((category) => {
-        counts[category] = taskManager.getTasksByCategory(category).length
-      })
+    taskManager.getCategories().forEach((category) => {
+      counts[category] = taskManager.getTasksByCategory(category).length
+    })
     }
     return counts
   }
 
   const taskCounts = getTaskCounts()
+
+  const openEditMenu = (task: Task) => {
+    setSelectedTask(task)
+    setShowEditMenu(true)
+  }
+
+  const closeEditMenu = () => {
+    setSelectedTask(null)
+    setShowEditMenu(false)
+  }
 
   // Show loading state until hydrated
   if (!isHydrated) {
@@ -247,13 +260,7 @@ export default function TodoApp() {
               >
                 {selectedCategory ? `${selectedCategory} Tasks` : "All Tasks"}
               </h1>
-              <p 
-                className="mt-1 transition-all duration-300"
-                style={{ color: colors.foreground + "80" }}
-              >
-                {filteredTasks.length} task{filteredTasks.length !== 1 ? "s" : ""}
-                {searchQuery ? ` matching "${searchQuery}"` : ""}
-              </p>
+              
             </div>
             <Button
               onClick={() => setShowCreateForm(true)}
@@ -360,13 +367,16 @@ export default function TodoApp() {
                 </div>
               </div>
             ) : (
-              filteredTasks.map((task) => (
+              filteredTasks.map((task, index) => (
                 <TaskCard
                   key={task.id}
                   task={task}
+                  allCategories={taskManager.getCategories()}
                   onUpdate={handleUpdateTask}
                   onDelete={handleDeleteTask}
                   onAddSubtask={handleAddSubtask}
+                  taskNumber={`${index + 1}`}
+                  onEdit={() => openEditMenu(task)}
                 />
               ))
             )}
@@ -379,6 +389,22 @@ export default function TodoApp() {
                 categories={taskManager.getCategories()}
                 onCreateTask={handleCreateTask}
                 onCancel={() => setShowCreateForm(false)}
+              />
+            </div>
+          )}
+
+          {/* Task Edit Menu */}
+          {showEditMenu && selectedTask && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+              <TaskEditMenu
+                task={selectedTask}
+                categories={taskManager.getCategories()}
+                onUpdate={handleUpdateTask}
+                onClose={closeEditMenu}
+                onAddCategory={(category) => {
+                  taskManager.addCategory(category)
+                  refreshTasks()
+                }}
               />
             </div>
           )}

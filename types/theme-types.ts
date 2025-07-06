@@ -125,10 +125,10 @@ export const THEMES: Theme[] = [
       taskSubcolors: ["#FEF9C3", "#FDE68A", "#FCD34D"],
     },
     dark: {
-      background: "#2F2B12",
+      background: "#2A2410",
       foreground: "#FEF9C3",
       accent: "#EAB308",
-      card: "#3F3816",
+      card: "#3A3214",
       taskSubcolors: ["#CA8A04", "#D97706", "#F59E0B"],
     },
   },

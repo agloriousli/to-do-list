@@ -10,7 +10,7 @@ export class TaskManager {
   constructor() {
     // Don't load from storage during SSR
     if (typeof window !== "undefined") {
-      this.loadFromStorage()
+    this.loadFromStorage()
       this.initialized = true
     }
   }
@@ -32,7 +32,7 @@ export class TaskManager {
   public createTask(
     name: string,
     type: TaskType = TaskType.DO,
-    category = "Personal",
+    category: string | string[] = "Personal",
     urgency: TaskUrgency[] = [TaskUrgency.CASUAL],
     dueDate: Date | null = null,
     color: TaskColor = DEFAULT_TASK_COLOR,
@@ -41,7 +41,8 @@ export class TaskManager {
     const task = new Task(name, type, category, urgency, dueDate, null, color)
     task.addSystemMessage("🎯 Task created! Use this channel to track progress, share updates, and collaborate.")
     this.tasks.push(task)
-    this.categories.add(category)
+    const categories = Array.isArray(category) ? category : [category]
+    categories.forEach(cat => this.categories.add(cat))
     this.saveToStorage()
     return task
   }
@@ -67,7 +68,8 @@ export class TaskManager {
     if (task) {
       task.updateTask(updates)
       if (updates.category) {
-        this.categories.add(updates.category)
+        const categories = Array.isArray(updates.category) ? updates.category : [updates.category]
+        categories.forEach(cat => this.categories.add(cat))
       }
       this.saveToStorage()
       return true
@@ -129,7 +131,7 @@ export class TaskManager {
     parentId: string,
     name: string,
     type: TaskType = TaskType.DO,
-    category: string,
+    category: string | string[],
     urgency: TaskUrgency[] = [TaskUrgency.CASUAL],
     dueDate: Date | null = null,
     color: TaskColor = DEFAULT_TASK_COLOR,
@@ -147,7 +149,7 @@ export class TaskManager {
 
   public getTasksByCategory(category: string): Task[] {
     this.ensureInitialized()
-    return this.tasks.filter((task) => task.category === category)
+    return this.tasks.filter((task) => task.category.includes(category))
   }
 
   public getTasksByUrgency(urgency: TaskUrgency): Task[] {
