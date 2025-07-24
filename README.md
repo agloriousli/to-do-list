@@ -1,4 +1,4 @@
-# 🎯 Colorful To-Do List App
+# 🎯 To-Do List App
 
 A modern, feature-rich to-do list application built with Next.js, featuring beautiful pastel themes, Discord-style messaging, and comprehensive task management capabilities.
 
